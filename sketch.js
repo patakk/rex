@@ -1,23 +1,10 @@
 let canvas;
 var pg;
-var pass1;
-var pass2;
-var pass3;
 
-let helvetica;
-let pressstart;
 let effect;
-let blurH;
-let blurV;
-
-var shouldReset = true;
-
-var colors;
-var bgc;
-var stc;
-var randomhue = 0;
-
-var D = 2000;
+var seed;
+var mainfreq;
+var columns;
 
 function fxrandom(a, b){
     if(a && b){
@@ -33,139 +20,67 @@ function fxrandom(a, b){
 
 
 function preload() {
-    helvetica = loadFont('assets/HelveticaNeueBd.ttf');
-    pressstart = loadFont('assets/PressStart2P-Regular.ttf');
-    effect = loadShader('assets/effect.vert', 'assets/effect.frag');
-    blurH = loadShader('assets/blur.vert', 'assets/blur.frag');
-    blurV = loadShader('assets/blur.vert', 'assets/blur.frag');
+    effect = loadShader('assets/blur.vert', 'assets/blur.frag');
 }
 
+var mm;
 function setup(){
-    var mm = min(min(windowWidth, windowHeight), 800);
-    canvas = createCanvas(mm, mm, WEBGL);
+    mm = min(800, min(windowWidth, windowHeight));
+    canvas = createCanvas(windowWidth, windowHeight, WEBGL);
 
-    pass1 = createGraphics(D, D, WEBGL);
-    pass2 = createGraphics(D, D, WEBGL);
-    pass3 = createGraphics(D, D, WEBGL);
-    pass1.noStroke();
-    pass2.noStroke();
-    pass3.noStroke();
-    
-    pg = createGraphics(D, D, WEBGL);
-    pg.ortho(-D/2, D/2, -D/2, D/2, 0, 4444);
-    pg.colorMode(HSB, 100);
-    pg.imageMode(CENTER);
-
-    randomhue = 0;
     imageMode(CENTER);
     colorMode(HSB, 100);
     rectMode(CENTER);
-    redrawpg();
+    
+    reset();
 }
 
-function redrawpg(){
-    let r = 177;
-    pg.background(3, 3, 3);
-    pg.noStroke();
-    for(var k = 0; k < 33; k++){
-        pg.fill(random(100), 60, 3);
-        pg.fill(random(100), 60, 80);
-        //pg.ellipse(random(-D/2, D/2), random(-D/2, D/2), r, r);
-    }
-    randomhue = fxrandom(0, 100);
-}
 
 function draw(){
-    for(var k = 0; k < 2; k++){
-        shaderOnCanvas();
-    }
-    show();
-
-
-
-    let xx1 = map(mouseX, 0, width, -D/2, D/2);
-    let yy1 = map(mouseY, 0, height, -D/2, D/2);
-    let xx2 = map(pmouseX, 0, width, -D/2, D/2);
-    let yy2 = map(pmouseY, 0, height, -D/2, D/2);
-    let dd = dist(xx1, yy1, xx2, yy2);
-    let r = map(constrain(dd, 2, 30), 2, 30, 4, 133);
-    brushsize = brushsize + .01*(r - brushsize);
+  
+    effect.setUniform('resolution', [width, height]);
+    effect.setUniform('time', millis()/1000.);
+    effect.setUniform('mouse', [mouseX/width, mouseY/height]);
+    effect.setUniform('seed', seed);
+    effect.setUniform('columns', columns);
+    effect.setUniform('mainfreq', mainfreq);
+    shader(effect);
+    quad(-1,-1,1,-1,1,1,-1,1);
 }
 
 var shapes = [];
 var brushsize = 40;
 
-function mouseDragged(){
-    pg.fill(0, 0, randomhue);
-    pg.fill(55, random(3, 9), 88);
-    let xx1 = map(mouseX, 0, width, -D/2, D/2);
-    let yy1 = map(mouseY, 0, height, -D/2, D/2);
-    let xx2 = map(pmouseX, 0, width, -D/2, D/2);
-    let yy2 = map(pmouseY, 0, height, -D/2, D/2);
-    let dd = dist(xx1, yy1, xx2, yy2);
-    let parts = dd/4;
-    let r = map(constrain(dd, 2, 30), 2, 30, 4, 133);
-    brushsize = brushsize + .01*(r - brushsize);
-    for(var k = 0; k < parts; k++){
-        let xx = lerp(xx1, xx2, k/parts);
-        let yy = lerp(yy1, yy2, k/parts);
-        pg.ellipse(xx, yy, brushsize, brushsize);
-    }
-}
-
-function mouseReleased(){
-    randomhue = random(0, 100);
-    print(randomhue)
-}
-
-
-function shaderOnCanvas(){
-    
-    blurH.setUniform('tex0', pg);
-    blurH.setUniform('texelSize', [1.0/D, 1.0/D]);
-    blurH.setUniform('u_time', frameCount);
-    blurH.setUniform('amp', .15);
-    pass1.shader(blurH);
-    pass1.quad(-1,-1,1,-1,1,1,-1,1);
-    
-    blurV.setUniform('tex0', pass1);
-    blurV.setUniform('texelSize', [1.0/D, 1.0/D]);
-    blurV.setUniform('u_time', frameCount);
-    blurV.setUniform('amp', .15);
-    pass2.shader(blurV);
-    pass2.quad(-1,-1,1,-1,1,1,-1,1);
-    
-    effect.setUniform('tex0', pass2);
-    effect.setUniform('tex1', pg);
-    effect.setUniform('u_resolution', [D, D]);
-    effect.setUniform('u_mouse', [D, D]);
-    effect.setUniform('u_time', frameCount);
-    effect.setUniform('incolor', [.93, .9, .88, 1.]);
-    
-    pass3.shader(effect);
-    pass3.quad(-1,-1,1,-1,1,1,-1,1);
-
-    if(frameCount>1)
-        pg.image(pass1, 0, 0, D, D)
-    
-}
-
 function show(){
-    image(pass1, 0, 0, width, height);
-    noFill();
-    stroke(3, 2, 94);
-    strokeWeight(max(width*.02, 10));
-    rect(0, 0, width+2, height+2);
+}
+
+function reset(){
+    seed = random(100.);
+    mainfreq = random(3., 100.);
+    if(random(100) < 50)
+        mainfreq = random(3, 30);
+    else
+        mainfreq = random(230, 400);
+    
+    if(random(100) < 30)
+        columns = random(6., 33);
+    else
+        columns = random(222, 666);
+    
 }
 
 function mouseClicked(){
+    reset();
+}
 
+function touchEnded(){
+    reset();
 }
 
 
 function windowResized() {
-    var mm = min(min(windowWidth, windowHeight), 800);
-    resizeCanvas(mm, mm);
+    mm = min(800, min(windowWidth, windowHeight));
+    resizeCanvas(windowWidth, windowHeight);
     //reset();
     show();
 }

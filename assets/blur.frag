@@ -10,12 +10,19 @@ varying vec2 vTexCoord;
 uniform sampler2D tex0;
 
 // the size of a texel or 1.0 / width , 1.0 / height
-uniform vec2 texelSize;
-uniform float amp;
 
-uniform float u_time;
 // which way to blur, vec2(1.0, 0.0) is horizontal, vec2(0.0, 1.0) is vertical
 
+#extension GL_OES_standard_derivatives : enable
+
+precision highp float;
+
+uniform float time;
+uniform float seed;
+uniform float columns;
+uniform float mainfreq;
+uniform vec2 mouse;
+uniform vec2 resolution;
 
 float randomNoise(vec2 p) {
   return fract(16791.414*sin(7.*p.x+p.y*73.41));
@@ -93,58 +100,49 @@ float fbm3 ( in vec2 _st, in float t) {
     return v;
 }
 
-float getff(vec2 st, float time){
-    vec2 qq = vec2(0.);
-    qq.x = fbm3( st + 0.1, time*.04);
-    qq.y = fbm3( st + vec2(1.0), time*.04);
-    vec2 rr = vec2(0.);
-    rr.x = fbm3( st + 1.0*qq + vec2(1.7,9.2)+ 0.15*time*0., time*.04);
-    rr.y = fbm3( st + 1.0*qq + vec2(8.3,2.8)+ 0.126*time*0., time*.04);
-    float ff = fbm3(st+rr, time*.04);
-    ff = (ff*ff*ff+0.120*ff*ff+.5*ff);
-    ff = 1.4*ff*ff + .2;
-	//ff = smoothstep(.16, .88, ff);
-    return ff;
+float fff(vec2 st){
+    st += mod(seed, 4.);
+	vec2 q = vec2(0.);
+	q.x = fbm3( st + 0.1, 0.*.11);
+	q.y = fbm3( st + vec2(1.0), 0.*.11);
+	vec2 r = vec2(0.);
+	r.x = fbm3( st + 1.0*q + vec2(1.7,9.2)+ 0.15*0.*0., 0.*.11);
+	r.y = fbm3( st + 1.0*q + vec2(8.3,2.8)+ 0.126*0.*0., 0.*.11);
+	float f = fbm3(st+r, 0.*.11);
+	
+	float ff = (f*f*f+0.120*f*f+.5*f);
+
+	
+	return ff;
 }
 
+vec3 hsv2rgb(vec3 c)
+{
+    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
 
-void main() {
+void main( void ) {
 
-  	vec2 uv = gl_FragCoord.xy*texelSize;
-    vec2 st = uv*vec2(1., 1.);
-    uv = uv/2.;
-    uv.y = 1. - uv.y;
+	vec2 pos = ( gl_FragCoord.xy / resolution.xy )/2.;
+    pos.y = 1. - pos.y;
+	//float Nx = mouse.x*333. + 1.;
+	float Nx = columns;
+	float bucketx = floor(pos.x*Nx);
+	
+	float off = .3*fff(vec2(bucketx, bucketx)/Nx*1.);
+	
+	float Ny = 201. + 200.*sin(time*.31 + off*mainfreq);
+	float buckety = floor(pos.y*Ny);
+	
+	float ff = fff(vec2(buckety, buckety));
 
-    float Nx = 12.;
-    float Ny = 3.;
-    float xq = floor(uv.x*Nx)/Nx;
-    float yq = floor(uv.y*Ny)/Ny;
+    float rr = random(vec2(seed));
 
-    vec2 stq = st;
-    stq.x = pow(stq.x, 2.) + xq*123.;
-    stq.y = pow(stq.y, 2.) + yq*123.;
+	vec3 rgb = hsv2rgb(vec3(mod(mod(ff*rr, 1.1)+seed, 1.0)+.0, mod(mod(ff*.14, 1.1)+seed*.3, 1.), mod(mod(ff*1.44, 1.1)+seed*.23, 1.)));
 
-    stq *= .4;
 
-    float rndm1 = randomNoise(uv+mod(u_time*.001, .3)+fbm(uv));
-    float rndm2 = randomNoise(uv+mod(u_time*.001, .3)+fbm(uv)+.2131);
-
-    float aa1 = getff(stq*.3, u_time*.3);
-    float fx1 = getff(stq+1.52, u_time*.2)+ .14*(-.5 + rndm1);
-    float fy1 = getff(stq+.5, u_time*.2)+ .14*(-.5 + rndm2);
-    //fx1 = mod(fx1, .2)*5.;
-    stq *= 11.4;
-    //fx2 = mod(fx2, .2)*5.;
-
-    vec2 nz = vec2(fx1-.5, fy1-.5)*vec2(1.,1.)*texelSize * 6.;
-    vec4 col1 = texture2D(tex0, uv);
-    vec4 col2 = texture2D(tex0, uv + nz);
-    float pp = 0.3;
-    vec4 col = col1*pp + (1.-pp)*col2 + .25*(-.5 + rndm1);
-    //col = col*1.001;
-    col.a = 1.;
-
-  	gl_FragColor = vec4(vec3(aa1), 1.0);
-  	gl_FragColor = col;
+	gl_FragColor = vec4( rgb, 1.0 );
 
 }
