@@ -1,4 +1,4 @@
-# tudi
+# rex
 
-https://patakk.xyz/tudi
+https://patakk.xyz/rex
 
